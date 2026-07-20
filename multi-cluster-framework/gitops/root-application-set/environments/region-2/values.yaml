@@ -1,0 +1,41 @@
+global:
+  repoURL: https://github.com/your-org/gitops.git
+  revision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=false
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  appname: region-2-argo-app
+
+# region-2 is a single SPOKE cluster. It hosts no ArgoCD of its own; the central
+# ArgoCD on the hub (pre-prod) reconciles it via the cross-cluster access entry
+# defined in region-2's eks-cluster.tfvars. Registering it here creates the
+# cluster Secret (magic label) so the hub's ArgoCD can reach it.
+clusters:
+  - destinationName: region-2-cluster
+    server: arn:aws:eks:eu-west-1:123456789012:cluster/my-app-region-2-cluster
+    project: default
+
+# The ApplicationSet for this region is deployed onto the hub cluster where
+# ArgoCD runs (in-cluster). Its child Applications target region-2-cluster.
+applicationSets:
+  - name: region-2-app-set
+    env: region-2
+    path: application-sets
+    valueFile: environments/region-2/values.yaml
+    project: default
+    destinationName: in-cluster   # runs on the hub; child apps target region-2-cluster
+    namespace: argocd
+    annotations:
+      notifications.argoproj.io/subscribe.on-degraded.slack: platform-alerts
+      notifications.argoproj.io/subscribe.on-sync-failed.slack: platform-alerts
+      notifications.argoproj.io/subscribe.on-sync-succeeded.slack: platform-deployments

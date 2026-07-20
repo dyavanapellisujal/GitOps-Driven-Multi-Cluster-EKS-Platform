@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local environment / secrets
+.env
+*.env
+*.pem
+*.key
+*.crt
+*.p12
+kubeconfig
+*.kubeconfig
+
+# Local build / archive output
+*.log
+*.tgz

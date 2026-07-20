@@ -1,0 +1,133 @@
+{{- range .Values.clusters }}
+  {{- $cluster := . }}
+  
+  {{/* ================================================================== */}}
+  {{/* Git-based ApplicationSets — for internal charts in our helm repo   */}}
+  {{/* ================================================================== */}}
+  {{- range .sets }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: {{ .name }}
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  - git:
+      repoURL: {{ $.Values.global.repoURL }}
+      revision: {{ default $.Values.global.revision .revision }}
+      files:
+        - path: {{ .path }}
+  template:
+    metadata:
+      name: '{{`{{.path.path | splitList "/" | first}}`}}-{{ .env }}'
+      labels:
+        env: {{ .env }}
+        cluster: {{ $cluster.destinationName }}
+        service: '{{`{{.path.path | splitList "/" | first}}`}}'
+      {{- if .annotations }}
+      annotations:
+        {{- toYaml .annotations | nindent 8 }}
+      {{- end }}
+        
+    spec:
+      project: {{ .project }}
+      source:
+        repoURL: {{ $.Values.global.repoURL }}
+        targetRevision: {{ default $.Values.global.revision .revision }}
+        path: '{{`{{.path.path | splitList "/" | first}}`}}'
+        helm:
+          releaseName: '{{`{{.path.path | splitList "/" | first}}`}}'
+          valueFiles:
+            - {{ .valueFile }}
+      destination:
+        name: {{ $cluster.destinationName }}
+        namespace: {{ default $cluster.namespace .namespace }}
+      syncPolicy:
+        {{- toYaml $.Values.global.syncPolicy | nindent 8 }}
+  {{- end }}
+
+  {{/* ================================================================== */}}
+  {{/* Remote Chart ApplicationSets — for OCI/external Helm registries   */}}
+  {{/* ================================================================== */}}
+  {{- range .remoteCharts }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: {{ .name }}-{{ $cluster.destinationName }}
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  {{- if .valuesFile }}
+  # Use Git generator to read values from a file in this repo
+  - git:
+      repoURL: {{ $.Values.global.repoURL }}
+      revision: {{ $.Values.global.revision }}
+      files:
+        - path: {{ .valuesFile }}
+  {{- else }}
+  # Simple list generator — no external values file
+  - list:
+      elements:
+      - cluster: {{ $cluster.destinationName }}
+        namespace: {{ .namespace }}
+  {{- end }}
+  template:
+    metadata:
+      name: {{ .name }}-{{ $cluster.destinationName }}
+      labels:
+        env: {{ .env }}
+        cluster: {{ $cluster.destinationName }}
+        chart: {{ .chart }}
+      {{- if .annotations }}
+      annotations:
+        {{- toYaml .annotations | nindent 8 }}
+      {{- end }}
+    spec:
+      project: {{ .project | default "default" }}
+      {{- if .valuesFile }}
+      # Multi-source: chart from registry + values from git
+      sources:
+        - repoURL: {{ .repoURL }}
+          chart: {{ .chart }}
+          targetRevision: {{ .version }}
+          helm:
+            releaseName: {{ .name }}
+            valueFiles:
+              - $values/{{ .valuesFile }}
+        - repoURL: {{ $.Values.global.repoURL }}
+          targetRevision: {{ $.Values.global.revision }}
+          ref: values
+      {{- else }}
+      # Single source: chart from registry with inline values
+      source:
+        repoURL: {{ .repoURL }}
+        chart: {{ .chart }}
+        targetRevision: {{ .version }}
+        helm:
+          releaseName: {{ .name }}
+          {{- if .values }}
+          valuesObject:
+            {{- toYaml .values | nindent 12 }}
+          {{- end }}
+      {{- end }}
+      destination:
+        name: {{ $cluster.destinationName }}
+        namespace: {{ .namespace }}
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
+          {{- range .syncOptions }}
+          - {{ . }}
+          {{- end }}
+        {{- if $.Values.global.syncPolicy.automated }}
+        automated:
+          {{- toYaml $.Values.global.syncPolicy.automated | nindent 10 }}
+        {{- end }}
+  {{- end }}
+{{- end }}

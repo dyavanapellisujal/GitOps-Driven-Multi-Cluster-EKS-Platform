@@ -1,0 +1,41 @@
+global:
+  repoURL: https://github.com/your-org/gitops.git
+  revision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=false
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  appname: region-1-argo-app
+
+# Production EU has TWO clusters: App + Use-case
+clusters:
+  - destinationName: region-1-cluster
+    server: arn:aws:eks:your-region-1:123456789012:cluster/my-app-region-1-cluster
+    project: default
+
+  - destinationName: region-1-use-case-cluster
+    server: arn:aws:eks:your-region-1:123456789012:cluster/my-app-region-1-use-case-cluster
+    project: default
+
+# App-set deployed on the USE-CASE cluster (segregated architecture)
+applicationSets:
+  - name: region-1-app-set
+    env: region-1
+    path: application-sets
+    valueFile: environments/region-1/values.yaml
+    project: default
+    destinationName: region-1-use-case-cluster # ← Runs on the use-case cluster, manages the app cluster
+    namespace: argocd
+    annotations:
+      notifications.argoproj.io/subscribe.on-degraded.slack: platform-alerts
+      notifications.argoproj.io/subscribe.on-sync-failed.slack: platform-alerts
+      notifications.argoproj.io/subscribe.on-sync-succeeded.slack: platform-deployments

@@ -1,0 +1,89 @@
+# Pre-prod environment values for service-a
+image:
+  repository: 123456789012.dkr.ecr.your-pre-prod-region.amazonaws.com/service-a
+  tag: "latest"
+  pullPolicy: Always
+
+serviceAccount:
+  create: true
+  name: service-a
+
+webServer:
+  replicaCount: 1
+  probesEnabled: true
+
+worker:
+  replicaCount: 1
+  command: ["python", "manage.py", "run_worker"]
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:your-pre-prod-region:123456789012:certificate/abc-123
+  hosts:
+    - host: api-staging.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: api-staging-tls
+      hosts:
+        - api-staging.example.com
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+livenessProbe:
+  httpGet:
+    path: /health/
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health/
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 5
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 1Gi
+
+envs:
+  - name: ENVIRONMENT
+    value: "pre-prod"
+  - name: DATABASE_HOST
+    value: "postgres.pre-prod.svc.cluster.local"
+  - name: REDIS_HOST
+    value: "redis.pre-prod.svc.cluster.local"
+  - name: REDIS_PORT
+    value: "6379"
+  - name: LOG_LEVEL
+    value: "DEBUG"
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+volumes: []
+volumeMounts: []

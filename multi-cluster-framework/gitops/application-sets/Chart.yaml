@@ -1,0 +1,5 @@
+apiVersion: v2
+name: application-sets
+description: Leaf ApplicationSets - Defines workloads per environment using Git and List generators
+type: application
+version: 0.1.0

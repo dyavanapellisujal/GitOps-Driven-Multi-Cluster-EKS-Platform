@@ -1,0 +1,89 @@
+# Production EU environment values for service-a
+image:
+  repository: 123456789012.dkr.ecr.your-region-1.amazonaws.com/service-a
+  tag: "v2.4.1"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: service-a
+
+webServer:
+  replicaCount: 3
+  probesEnabled: true
+
+worker:
+  replicaCount: 2
+  command: ["python", "manage.py", "run_worker"]
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:your-region-1:123456789012:certificate/def-456
+  hosts:
+    - host: api-eu.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: api-eu-tls
+      hosts:
+        - api-eu.example.com
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 15
+  targetCPUUtilizationPercentage: 60
+
+livenessProbe:
+  httpGet:
+    path: /health/
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health/
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 5
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 2Gi
+
+envs:
+  - name: ENVIRONMENT
+    value: "production"
+  - name: DATABASE_HOST
+    value: "my-app-region-1.cluster-abc123.your-region-1.rds.amazonaws.com"
+  - name: REDIS_HOST
+    value: "my-app-region-1.abc123.euc1.cache.amazonaws.com"
+  - name: REDIS_PORT
+    value: "6379"
+  - name: LOG_LEVEL
+    value: "WARNING"
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+volumes: []
+volumeMounts: []

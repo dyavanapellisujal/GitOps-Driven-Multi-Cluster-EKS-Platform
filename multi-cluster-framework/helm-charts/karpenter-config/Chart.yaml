@@ -1,0 +1,5 @@
+apiVersion: v2
+name: karpenter-config
+description: Karpenter EC2NodeClass and NodePool CRD configurations
+type: application
+version: 0.1.0

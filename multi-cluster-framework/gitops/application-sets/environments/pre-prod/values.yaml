@@ -1,0 +1,90 @@
+global:
+  repoURL: https://github.com/your-org/helm-charts.git
+  revision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=false
+
+clusters:
+  - name: pre-prod-cluster-sets
+    destinationName: pre-prod-cluster
+    namespace: pre-prod
+
+    # Internal services — auto-discovered via Git Generator glob pattern
+    sets:
+      - name: pre-prod-app-set
+        env: pre-prod-app
+        path: service-*/envs/pre-prod-values.yaml # ← Glob matches all services
+        valueFile: envs/pre-prod-values.yaml
+        project: default
+        annotations:
+          notifications.argoproj.io/subscribe.on-sync-failed.slack: platform-alerts
+
+      - name: pre-prod-karpenter-config
+        env: pre-prod-infra
+        path: karpenter-config/envs/pre-prod-values.yaml
+        valueFile: envs/pre-prod-values.yaml
+        project: default
+        namespace: karpenter
+
+    # External charts — deployed from OCI/Helm registries
+    remoteCharts:
+      # Karpenter node autoscaler
+      - name: karpenter
+        env: pre-prod-infra
+        repoURL: oci://public.ecr.aws/karpenter/karpenter
+        chart: karpenter
+        version: "suitable version"
+        namespace: karpenter
+        project: default
+        values:
+          replicas: 1
+          nodeSelector:
+            karpenter.sh/controller: "true"
+          settings:
+            clusterName: my-app-pre-prod-cluster
+            clusterEndpoint: https://ABCDEF1234567890.gr7.your-pre-prod-region.eks.amazonaws.com
+            interruptionQueue: Karpenter-my-app-pre-prod-cluster
+            aws:
+              defaultRegion: your-pre-prod-region
+          tolerations:
+            - key: CriticalAddonsOnly
+              operator: Exists
+            - key: karpenter.sh/controller
+              operator: Exists
+              effect: NoSchedule
+          webhook:
+            enabled: false
+
+      # AWS Load Balancer Controller
+      - name: aws-load-balancer-controller
+        env: pre-prod-infra
+        repoURL: https://aws.github.io/eks-charts
+        chart: aws-load-balancer-controller
+        version: "suitable-version"
+        namespace: kube-system
+        project: default
+        values:
+          clusterName: my-app-pre-prod-cluster
+          region: your-pre-prod-region
+          vpcId: vpc-0abc1234def567890
+          serviceAccount:
+            create: true
+            name: aws-load-balancer-controller
+          enableCertManager: false
+
+      # KEDA (Kubernetes Event-Driven Autoscaling)
+      - name: keda
+        env: pre-prod-infra
+        repoURL: https://kedacore.github.io/charts
+        chart: keda
+        version: "suitable-version"
+        namespace: keda
+        project: default
+        syncOptions:
+          - ServerSideApply=true # Avoids 256KB annotation limit on large CRDs
+        values: {}

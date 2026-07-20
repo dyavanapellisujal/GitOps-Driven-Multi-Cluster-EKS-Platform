@@ -1,0 +1,32 @@
+{{- range .Values.applicationSets }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ $.Values.global.appname }}
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  labels:
+    env: {{ .env }}
+    managed-by: root-application-set
+  {{- if .annotations }}
+  annotations:
+    {{- toYaml .annotations | nindent 4 }}
+  {{- end }}
+spec:
+  project: {{ .project | default "default" }}
+  source:
+    repoURL: {{ $.Values.global.repoURL }}
+    targetRevision: {{ default $.Values.global.revision .revision }}
+    path: {{ .path }}
+    helm:
+      releaseName: {{ .name }}
+      valueFiles:
+        - {{ .valueFile }}
+  destination:
+    name: {{ .destinationName | default "in-cluster" }}
+    namespace: {{ .namespace | default "argocd" }}
+  syncPolicy:
+    {{- toYaml $.Values.global.syncPolicy | nindent 4 }}
+{{- end }}

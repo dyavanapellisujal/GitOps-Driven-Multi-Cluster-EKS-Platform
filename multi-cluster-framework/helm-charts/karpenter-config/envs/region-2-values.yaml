@@ -1,0 +1,49 @@
+# Karpenter configuration for region-2 environment
+karpenter:
+  nodeClasses:
+    # Default node class for general workloads
+    - name: default
+      amiSelectorTerms:
+        - alias: al2023@latest
+      subnetSelectorTerms:
+        - tags:
+            karpenter.sh/discovery: my-app-region-2-cluster
+      securityGroupSelectorTerms:
+        - tags:
+            karpenter.sh/discovery: my-app-region-2-cluster
+      role: my-app-region-2-cluster-node-role
+      blockDeviceMappings:
+        - deviceName: /dev/xvda
+          ebs:
+            volumeSize: 50Gi
+            volumeType: gp3
+            encrypted: true
+      tags:
+        Environment: region-2
+        ManagedBy: karpenter
+
+  nodePools:
+    # Default pool for general workloads
+    - name: default
+      nodeClassRef: default
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand", "spot"]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            - t3a.medium
+            - t3a.large
+            - t3a.xlarge
+            - m5a.large
+            - m5a.xlarge
+      limits:
+        cpu: "100"
+        memory: 200Gi
+      disruption:
+        consolidationPolicy: WhenEmptyOrUnderutilized
+        consolidateAfter: 30s

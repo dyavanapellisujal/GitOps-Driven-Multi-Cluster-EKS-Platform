@@ -1,0 +1,91 @@
+global:
+  repoURL: https://github.com/your-org/helm-charts.git
+  revision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=false
+
+clusters:
+  - name: region-2-cluster-sets
+    destinationName: region-2-cluster
+    namespace: region-2
+
+    # Internal services — auto-discovered via Git Generator glob pattern.
+    # Any service with a region-2-values.yaml file is picked up automatically.
+    sets:
+      - name: region-2-app-set
+        env: region-2-app
+        path: service-*/envs/region-2-values.yaml   # ← glob matches all services
+        valueFile: envs/region-2-values.yaml
+        project: default
+        annotations:
+          notifications.argoproj.io/subscribe.on-sync-failed.slack: platform-alerts
+
+      - name: region-2-karpenter-config
+        env: region-2-infra
+        path: karpenter-config/envs/region-2-values.yaml
+        valueFile: envs/region-2-values.yaml
+        project: default
+        namespace: karpenter
+
+    # External charts — deployed from OCI/Helm registries
+    remoteCharts:
+      # Karpenter node autoscaler
+      - name: karpenter
+        env: region-2-infra
+        repoURL: oci://public.ecr.aws/karpenter/karpenter
+        chart: karpenter
+        version: "suitable-version"
+        namespace: karpenter
+        project: default
+        values:
+          replicas: 1
+          nodeSelector:
+            karpenter.sh/controller: "true"
+          settings:
+            clusterName: my-app-region-2-cluster
+            clusterEndpoint: https://ABCDEF1234567890.gr7.eu-west-1.eks.amazonaws.com
+            interruptionQueue: Karpenter-my-app-region-2-cluster
+            aws:
+              defaultRegion: eu-west-1
+          tolerations:
+            - key: CriticalAddonsOnly
+              operator: Exists
+            - key: karpenter.sh/controller
+              operator: Exists
+              effect: NoSchedule
+          webhook:
+            enabled: false
+
+      # AWS Load Balancer Controller
+      - name: aws-load-balancer-controller
+        env: region-2-infra
+        repoURL: https://aws.github.io/eks-charts
+        chart: aws-load-balancer-controller
+        version: "suitable-version"
+        namespace: kube-system
+        project: default
+        values:
+          clusterName: my-app-region-2-cluster
+          region: eu-west-1
+          vpcId: vpc-0aaa1111bbb222333
+          serviceAccount:
+            create: true
+            name: aws-load-balancer-controller
+          enableCertManager: false
+
+      # KEDA (Kubernetes Event-Driven Autoscaling)
+      - name: keda
+        env: region-2-infra
+        repoURL: https://kedacore.github.io/charts
+        chart: keda
+        version: "suitable-version"
+        namespace: keda
+        project: default
+        syncOptions:
+          - ServerSideApply=true # Avoids 256KB annotation limit on large CRDs
+        values: {}

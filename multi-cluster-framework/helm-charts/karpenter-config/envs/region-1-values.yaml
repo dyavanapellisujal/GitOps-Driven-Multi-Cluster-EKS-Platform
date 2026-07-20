@@ -1,0 +1,49 @@
+# Karpenter configuration for the region-1 (production) environment.
+# Same chart as pre-prod — only the values differ (12-Factor III: Config).
+karpenter:
+  nodeClasses:
+    - name: default
+      amiSelectorTerms:
+        - alias: al2023@latest
+      subnetSelectorTerms:
+        - tags:
+            karpenter.sh/discovery: my-app-region-1-cluster
+      securityGroupSelectorTerms:
+        - tags:
+            karpenter.sh/discovery: my-app-region-1-cluster
+      role: my-app-region-1-cluster-node-role
+      blockDeviceMappings:
+        - deviceName: /dev/xvda
+          ebs:
+            volumeSize: 100Gi
+            volumeType: gp3
+            encrypted: true
+      tags:
+        Environment: region-1
+        ManagedBy: karpenter
+
+  nodePools:
+    - name: default
+      nodeClassRef: default
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          # Production leans on-demand for the baseline, spot for burst headroom.
+          values: ["on-demand", "spot"]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            - m5a.large
+            - m5a.xlarge
+            - m5a.2xlarge
+            - m6a.large
+            - m6a.xlarge
+      limits:
+        cpu: "400"
+        memory: 800Gi
+      disruption:
+        consolidationPolicy: WhenEmptyOrUnderutilized
+        consolidateAfter: 60s

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: root-application-set
+description: Root ApplicationSet - Registers clusters and bootstraps app-sets per environment
+type: application
+version: 0.1.0

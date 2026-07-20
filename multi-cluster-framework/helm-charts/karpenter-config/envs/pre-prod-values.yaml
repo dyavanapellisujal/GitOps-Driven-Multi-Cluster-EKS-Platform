@@ -1,0 +1,83 @@
+# Karpenter configuration for pre-prod environment
+karpenter:
+  nodeClasses:
+    # Default node class for general workloads
+    - name: default
+      amiSelectorTerms:
+        - alias: al2023@latest
+      subnetSelectorTerms:
+        - tags:
+            karpenter.sh/discovery: my-app-pre-prod-cluster
+      securityGroupSelectorTerms:
+        - tags:
+            karpenter.sh/discovery: my-app-pre-prod-cluster
+      role: my-app-pre-prod-cluster-node-role
+      blockDeviceMappings:
+        - deviceName: /dev/xvda
+          ebs:
+            volumeSize: 50Gi
+            volumeType: gp3
+            encrypted: true
+      tags:
+        Environment: pre-prod
+        ManagedBy: karpenter
+
+    # Node class for GPU/compute-intensive workloads (optional)
+    # - name: gpu
+    #   amiSelectorTerms:
+    #     - alias: al2023@latest
+    #   subnetSelectorTerms:
+    #     - tags:
+    #         karpenter.sh/discovery: my-app-pre-prod-cluster
+    #   securityGroupSelectorTerms:
+    #     - tags:
+    #         karpenter.sh/discovery: my-app-pre-prod-cluster
+    #   role: my-app-pre-prod-cluster-node-role
+    #   blockDeviceMappings:
+    #     - deviceName: /dev/xvda
+    #       ebs:
+    #         volumeSize: 100Gi
+    #         volumeType: gp3
+    #         encrypted: true
+
+  nodePools:
+    # Default pool for general workloads
+    - name: default
+      nodeClassRef: default
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand", "spot"]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            - t3a.medium
+            - t3a.large
+            - t3a.xlarge
+            - m5a.large
+            - m5a.xlarge
+      limits:
+        cpu: "100"
+        memory: 200Gi
+      disruption:
+        consolidationPolicy: WhenEmptyOrUnderutilized
+        consolidateAfter: 30s
+
+    # Pool for spot-tolerant batch workloads (optional)
+    # - name: batch
+    #   nodeClassRef: default
+    #   requirements:
+    #     - key: karpenter.sh/capacity-type
+    #       operator: In
+    #       values: ["spot"]
+    #     - key: node.kubernetes.io/instance-type
+    #       operator: In
+    #       values: ["t3a.large", "t3a.xlarge", "m5a.large"]
+    #   limits:
+    #     cpu: "50"
+    #   disruption:
+    #     consolidationPolicy: WhenEmpty
+    #     consolidateAfter: 60s

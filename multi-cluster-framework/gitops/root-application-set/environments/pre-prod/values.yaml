@@ -1,0 +1,31 @@
+global:
+  repoURL: https://github.com/your-org/gitops.git
+  revision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+  appname: pre-prod-argo-app
+
+# Clusters to register in ArgoCD
+clusters:
+  - destinationName: pre-prod-cluster
+    server: arn:aws:eks:your-pre-prod-region:123456789012:cluster/my-app-pre-prod-cluster
+    project: default
+
+# Application Sets to deploy on each cluster
+applicationSets:
+  - name: pre-prod-app-set
+    env: pre-prod
+    path: application-sets
+    valueFile: environments/pre-prod/values.yaml
+    project: default
+    destinationName: pre-prod-cluster
+    namespace: argocd
+    annotations:
+      notifications.argoproj.io/subscribe.on-degraded.slack: platform-alerts
+      notifications.argoproj.io/subscribe.on-sync-failed.slack: platform-alerts
+      notifications.argoproj.io/subscribe.on-sync-succeeded.slack: platform-deployments
